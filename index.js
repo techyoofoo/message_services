@@ -1,5 +1,6 @@
 import Hapi from "hapi";
 import { publishToQueue, consume } from './src/services/mqservices';
+import axios from 'axios';
 
 const init = async () => {
   await server.start();
@@ -8,7 +9,7 @@ const init = async () => {
 
 const server = Hapi.server({
   port: process.env.PORT || 7003,
-  host: process.env.IP || "0.0.0.0",
+  host: process.env.IP || "localhost",
   routes: {
     cors: {
       origin: ["*"],
@@ -17,32 +18,48 @@ const server = Hapi.server({
     }
   }
 });
+
 server.route({
   method: "GET",
   path: "/",
-  handler: function(request, h) {
+  handler: function (request, h) {
     console.log('Test Data');
     return "Hello welcome to Message Queue services";
   }
 });
+
 //send messages to queue
 server.route({
-  method:'POST',
+  method: 'POST',
   path: '/send_msg',
   handler: async (req, res) => {
-    var queueName = req.payload.queue;
-    var msg = req.payload.message;
-    await publishToQueue(queueName, msg);
-    res.statusCode = 200;
-    res.data = { "message-sent": true };
-    return res;
+    const promise = new Promise(async (resolve, reject) => {
+      try {
+        let payload = req.payload;
+        axios
+          .get(payload.map_url)
+          .then(async (response) => {
+            let queueName = payload.UB.data_body.queue;
+            let msg = response.data.DropDownData;
+            await publishToQueue(queueName, JSON.stringify(msg));
+            return resolve({ Message: "Message sent", Data: response.data });
+          })
+          .catch(error => {
+            throw error;
+          });
+      }
+      catch (error) {
+        throw error
+      }
+    });
+    return promise;
   }
 })
 
 //recieve messages from queue
 server.route({
-  method:'POST',
-  path:'/receive_msg',
+  method: 'POST',
+  path: '/receive_msg',
   handler: async (req, h) => {
     var queueName = req.payload.queue;
     consume(queueName, res);
