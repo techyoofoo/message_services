@@ -9,8 +9,8 @@ var notifier = new EventEmitter();
 const init = async () => {
   await server.start();
   console.log("Server running on %s", server.info.uri);
-  await wsServer.start();
-  console.log("Server running on %s", wsServer.info.uri);
+  await socketServer.start();
+  console.log("Server running on %s", socketServer.info.uri);
 };
 
 const server = new Hapi.server({
@@ -25,15 +25,15 @@ const server = new Hapi.server({
   }
 });
 
-const wsServer = new Hapi.server({
+const socketServer = new Hapi.server({
   port: process.env.PORT || 4001,
   host: process.env.IP || "localhost",
   routes: {
-      cors: {
-          origin: ["*"],
-          headers: ["Accept", "Content-Type"],
-          additionalHeaders: ["X-Requested-With"]
-      }
+    cors: {
+      origin: ["*"],
+      headers: ["Accept", "Content-Type"],
+      additionalHeaders: ["X-Requested-With"]
+    }
   }
 });
 
@@ -60,7 +60,10 @@ server.route({
             let queueName = payload.UB.data_body.queue;
             let msg = response.data.DropDownData;
             await publishToQueue(queueName, JSON.stringify(msg));
-            return resolve({ Message: "Message sent", Data: response.data });
+        
+        let data = await consume(queueName);
+        notifier.emit('commission', JSON.parse(data));
+           // notifier.emit('commission', msg);
           })
           .catch(error => {
             throw error;
@@ -79,22 +82,29 @@ server.route({
   method: 'POST',
   path: '/receive_msg',
   handler: async (req, reply) => {
-    var queueName = req.payload.queue;
-    notifier.emit('news', { time: Date.now() });
-    let data = await consume(queueName);
-    console.log(data)
-    return reply.response(data).code(200);
+    const promise = new Promise(async (resolve, reject) => {
+      try {
+        // var queueName = req.payload.queue;
+        // let data = await consume(queueName);
+        // notifier.emit('commission', JSON.parse(data));
+        // //console.log(data)
+        // return resolve(reply.response(JSON.parse(data)).code(200));
+      }
+      catch (error) {
+        throw error
+      }
+    });
+    return promise;
   }
 })
 
-var io = require('socket.io')(wsServer.listener);
+var io = require('socket.io')(socketServer.listener);
 
 io.on('connection', function (socket) {
-    console.log("Connection succeed")
-    notifier.on('news', function (action) {
-       socket.emit('news', "Test");
-       console.log("news notifier hit")
-    });
+  console.log("Connection succeed")
+  notifier.on('commission', function (data) {
+    socket.emit('commission', data);
+  });
 });
 
 

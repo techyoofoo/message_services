@@ -31,39 +31,45 @@ export const consume = async (queueName) => {
     console.log("Waiting for messages in %s.", queueName);
     //var q = queueName;
     //ch.noAck = true;
-
-    connection.createChannel(function (err, channel) {
-        if (err) {
-            throw new Error(err)
-        }
-        channel.assertQueue(queueName, { durable: true }, function (err, status) {
-            if (err) {
-                throw new Error(err)
-            }
-            else if (status.messageCount === 0) {
-                return "messages:0";
-            } else {
-                var numChunks = 0;
-                var responseData = '{"messages": [';
-                channel.consume(queueName.que, function (msg) {
-                    var resChunk = msg.content.toString()
-                    responseData = responseData.concat(resChunk)
-                    if (numChunks < status.messageCount - 1) {
-                        responseData = responseData.concat(',')
+    const promise = new Promise(async (resolve, reject) => {
+        try {
+            connection.createChannel(function (err, channel) {
+                if (err) {
+                    throw new Error(err)
+                }
+                channel.assertQueue(queueName, { durable: true }, function (err, status) {
+                    if (err) {
+                        throw new Error(err)
                     }
-                    numChunks += 1
-                    if (numChunks === status.messageCount) {
-                        responseData = responseData.concat(']}')
-                        channel.close();
-                        // ch.close(function() {connection.close()})
-                        console.log(responseData)
-                        return responseData;
+                    else if (status.messageCount === 0) {
+                        return "messages:0";
+                    } else {
+                        var numChunks = 0;
+                        var responseData = '{"messages": [';
+                        channel.consume(queueName.que, function (msg) {
+                            var resChunk = msg.content.toString()
+                            responseData = responseData.concat(resChunk)
+                            if (numChunks < status.messageCount - 1) {
+                                responseData = responseData.concat(',')
+                            }
+                            numChunks += 1
+                            if (numChunks === status.messageCount) {
+                                responseData = responseData.concat(']}')
+                                channel.close();
+                                // channel.close(function() {connection.close()})
+                                return resolve(responseData);
+                            }
+                        })
                     }
                 })
-            }
-        })
-
-    }, { noAck: true });
+        
+            }, { noAck: true });
+        }
+        catch (error) {
+          throw error
+        }
+      });
+      return promise;
 }
 
 process.on('exit', (code) => {
