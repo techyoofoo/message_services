@@ -27,7 +27,7 @@ export const publishToQueue = async (queueName, data) => {
     }, { noAck: true });
 }
 
-export const consume = (queueName, res) => {
+export const consume = async (queueName) => {
     console.log("Waiting for messages in %s.", queueName);
     //var q = queueName;
     //ch.noAck = true;
@@ -41,34 +41,33 @@ export const consume = (queueName, res) => {
                 throw new Error(err)
             }
             else if (status.messageCount === 0) {
-                res.send('{"messages": 0}')
+                return "messages:0";
             } else {
                 var numChunks = 0;
-                res.writeHead(200, { "Content-Type": "application/json" })
-                res.write('{"messages": [')
+                var responseData = '{"messages": [';
                 channel.consume(queueName.que, function (msg) {
                     var resChunk = msg.content.toString()
-                    res.write(resChunk)
+                    responseData = responseData.concat(resChunk)
+                    if (numChunks < status.messageCount - 1) {
+                        responseData = responseData.concat(',')
+                    }
                     numChunks += 1
-                    numChunks < status.messageCount && res.write(',')
                     if (numChunks === status.messageCount) {
-                        res.write(']}')
-                        res.end()
+                        responseData = responseData.concat(']}')
                         channel.close();
                         // ch.close(function() {connection.close()})
+                        console.log(responseData)
+                        return responseData;
                     }
                 })
             }
         })
 
     }, { noAck: true });
-
-
-
 }
 
 process.on('exit', (code) => {
     //ch.close();
-    connection.close();
+    // connection.close();
     console.log(`Closing rabbitmq channel`);
 });

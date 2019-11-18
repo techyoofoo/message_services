@@ -2,12 +2,18 @@ import Hapi from "hapi";
 import { publishToQueue, consume } from './src/services/mqservices';
 import axios from 'axios';
 
+
+var EventEmitter = require('events');
+var notifier = new EventEmitter();
+
 const init = async () => {
   await server.start();
   console.log("Server running on %s", server.info.uri);
+  await wsServer.start();
+  console.log("Server running on %s", wsServer.info.uri);
 };
 
-const server = Hapi.server({
+const server = new Hapi.server({
   port: process.env.PORT || 7003,
   host: process.env.IP || "localhost",
   routes: {
@@ -16,6 +22,18 @@ const server = Hapi.server({
       headers: ["Accept", "Content-Type"],
       additionalHeaders: ["X-Requested-With"]
     }
+  }
+});
+
+const wsServer = new Hapi.server({
+  port: process.env.PORT || 4001,
+  host: process.env.IP || "localhost",
+  routes: {
+      cors: {
+          origin: ["*"],
+          headers: ["Accept", "Content-Type"],
+          additionalHeaders: ["X-Requested-With"]
+      }
   }
 });
 
@@ -60,13 +78,26 @@ server.route({
 server.route({
   method: 'POST',
   path: '/receive_msg',
-  handler: async (req, h) => {
+  handler: async (req, reply) => {
     var queueName = req.payload.queue;
-    consume(queueName, res);
-    res.statusCode = 200;
-    return res;
+    notifier.emit('news', { time: Date.now() });
+    let data = await consume(queueName);
+    console.log(data)
+    return reply.response(data).code(200);
   }
 })
+
+var io = require('socket.io')(wsServer.listener);
+
+io.on('connection', function (socket) {
+    console.log("Connection succeed")
+    notifier.on('news', function (action) {
+       socket.emit('news', "Test");
+       console.log("news notifier hit")
+    });
+});
+
+
 
 process.on("unhandledRejection", err => {
   console.log(err);
