@@ -59,11 +59,11 @@ server.route({
           .then(async (response) => {
             let queueName = payload.UB.data_body.queue;
             let msg = response.data.DropDownData;
-            await publishToQueue(queueName, JSON.stringify(msg));
+            await publishToQueue("commission", JSON.stringify(msg));
         
-        let data = await consume(queueName);
-        notifier.emit('commission', JSON.parse(data));
-           // notifier.emit('commission', msg);
+            //let data = await consume(queueName);
+            //notifier.emit('commission', JSON.parse(data));
+            //notifier.emit('commission', JSON.stringify(msg));
           })
           .catch(error => {
             throw error;
@@ -84,11 +84,11 @@ server.route({
   handler: async (req, reply) => {
     const promise = new Promise(async (resolve, reject) => {
       try {
-        // var queueName = req.payload.queue;
-        // let data = await consume(queueName);
-        // notifier.emit('commission', JSON.parse(data));
-        // //console.log(data)
-        // return resolve(reply.response(JSON.parse(data)).code(200));
+        var queueName = req.payload.queue;
+        let data = await consume("commission");
+        notifier.emit('commission', JSON.parse(data));
+        //console.log(data)
+        return resolve(reply.response(JSON.parse(data)).code(200));
       }
       catch (error) {
         throw error
